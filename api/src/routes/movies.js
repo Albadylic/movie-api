@@ -20,7 +20,7 @@ router.get("/:id", (req, res) => {
 
 // POST /movies
 // * Add a movie
-router.post("/movies", (req, res) => {
+router.post("/", (req, res) => {
   const { title, director, year, genre, synopsis } = req.body;
 
   if (!title || !director || !year || !genre) {
