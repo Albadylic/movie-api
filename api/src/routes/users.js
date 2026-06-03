@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
+const db = require("../db");
 
 let users = [];
 
@@ -13,6 +14,15 @@ router.post("/", (req, res) => {
     return res.status(400).json({ error: "Name and email are required" });
   }
 
+  const existingUser = db
+    .prepare("SELECT id FROM users WHERE email = ?")
+    .get(email);
+  if (existingUser) {
+    return res
+      .status(409)
+      .json({ error: "Account already exists for this email" });
+  }
+
   const user = {
     id: randomUUID(),
     name,
@@ -21,7 +31,10 @@ router.post("/", (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
-  users.push(user);
+  db.prepare(
+    "INSERT INTO users (id, name, email, role, created_at) VALUES (?, ?, ?, ?, ?);",
+  ).run(user.id, user.name, user.email, user.role, user.createdAt);
+
   res.status(201).json(user);
 });
 
@@ -29,8 +42,11 @@ router.post("/", (req, res) => {
 // * Fetch a user by ID
 
 router.get("/:id", (req, res) => {
-  const user = users.find((u) => u.id === req.params.id);
+  const user = db
+    .prepare("SELECT * FROM users WHERE id = ?;")
+    .get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
+
   res.json(user);
 });
 
