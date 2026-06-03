@@ -1,23 +1,33 @@
 const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
+const db = require("../db");
 
-let reviews = [];
+const reviews = [];
 
 // Get /reviews?movieId=:id
 // * Get reviews for a movie
 router.get("/", (req, res) => {
   const { movieId } = req.query;
-  const result = movieId
-    ? reviews.filter((r) => r.movieId === movieId)
-    : reviews;
-  res.json(result);
+  const reviews = db
+    .prepare("SELECT * FROM reviews WHERE movie_id = ?")
+    .all(movieId);
+  res.json(reviews);
 });
 
 // POST /reviews
 // * Create a new review
 router.post("/", (req, res) => {
   const { userId, movieId, rating, comment } = req.body;
+
+  // Check the movie exists
+  const movie = db.prepare("SELECT id FROM movies WHERE id = ?").get(movieId);
+  if (!movie) return res.status(404).json({ error: "Movie not found" });
+
+  // Check the user exists
+  // This can be a challenge
+  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
 
   if (!userId || !movieId || rating === undefined) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -27,26 +37,32 @@ router.post("/", (req, res) => {
     return res.status(400).json({ error: "Rating must be between 1 and 5" });
   }
 
-  // A user can review each movie only once
-  const existingReview = reviews.find(
-    (r) => r.userId === userId && r.movieId === movieId,
-  );
-  if (existingReview) {
-    return res
-      .status(409)
-      .json({ error: "You have already reviewed this movie" });
-  }
-
   const review = {
     id: randomUUID(),
-    userId,
-    movieId,
-    rating,
-    comment: comment || null,
     createdAt: new Date().toISOString(),
   };
 
-  reviews.push(review);
+  try {
+    db.prepare(
+      "INSERT INTO reviews (id, movie_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run(
+      review.id,
+      movieId,
+      userId,
+      rating,
+      comment ?? null,
+      review.createdAt,
+    );
+  } catch (err) {
+    if (err.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res
+        .status(409)
+        .json({ error: "You have already reviewed this movie" });
+    } else {
+      throw err; // Throw a generic error to the catch-all handler in index.js
+    }
+  }
+
   res.status(201).json(review);
 });
 
@@ -54,12 +70,14 @@ router.post("/", (req, res) => {
 // * Update an existing review
 router.patch("/:id", (req, res) => {
   const { userId, rating, comment } = req.body;
-  const review = reviews.find((r) => r.id === req.params.id);
+  const review = db
+    .prepare("SELECT * FROM reviews WHERE id = ?")
+    .get(req.params.id);
 
   if (!review) return res.status(404).json({ error: "Review not found" });
 
   // Ownership check
-  if (review.userId !== userId) {
+  if (review.user_id !== userId) {
     return res
       .status(403)
       .json({ error: "You can only update your own reviews" });
@@ -74,6 +92,12 @@ router.patch("/:id", (req, res) => {
 
   if (comment !== undefined) review.comment = comment;
 
+  db.prepare("UPDATE reviews SET rating=?, comment=? WHERE id=?").run(
+    newRating,
+    newComment,
+    req.params.id,
+  );
+
   res.json(review);
 });
 
@@ -81,18 +105,20 @@ router.patch("/:id", (req, res) => {
 // * Remove a review
 router.delete("/:id", (req, res) => {
   const { userId } = req.body;
-  const index = reviews.findIndex((r = r.id === req.params.id));
+  const review = db
+    .prepare("SELECT * FROM reviews WHERE id = ?")
+    .get(req.params.id);
 
-  if (index === -1) return res.status(404).json({ error: "Review not found" });
+  if (!review) return res.status(404).json({ error: "Review not found" });
 
-  if (reviews[index].userId !== userId) {
+  if (review.user_id !== userId) {
     // And the user is not an admin
     return res
       .status(403)
       .json({ error: "You can only delete your own reviews" });
   }
 
-  reviews.splice(index, 1);
+  db.prepare("DELETE FROM reviews WHERE id = ?").run(req.params.id);
   res.status(204).send();
 });
 
