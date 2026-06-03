@@ -3,8 +3,6 @@ const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
 
-let users = [];
-
 // POST /users
 // * Register a new user
 router.post("/", (req, res) => {
@@ -32,7 +30,7 @@ router.post("/", (req, res) => {
   };
 
   db.prepare(
-    "INSERT INTO users (id, name, email, role, created_at) VALUES (?, ?, ?, ?, ?);",
+    "INSERT INTO users (id, name, email, role, created_at) VALUES (?, ?, ?, ?, ?)",
   ).run(user.id, user.name, user.email, user.role, user.createdAt);
 
   res.status(201).json(user);
@@ -43,7 +41,7 @@ router.post("/", (req, res) => {
 
 router.get("/:id", (req, res) => {
   const user = db
-    .prepare("SELECT * FROM users WHERE id = ?;")
+    .prepare("SELECT * FROM users WHERE id = ?")
     .get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
 

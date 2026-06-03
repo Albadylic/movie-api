@@ -1,22 +1,27 @@
 const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
-
-let movies = [];
+const db = require("../db");
 
 // GET /movies
 // * List all movies
 router.get("/", (req, res) => {
+  const movies = db.prepare("SELECT * FROM movies").all();
   res.json(movies);
 });
 
 // GET /movies/:id
 // * Fetch a movie by ID
 router.get("/:id", (req, res) => {
-  const movie = movies.find((m) => m.id === req.params.id);
+  const movie = db
+    .prepare("SELECT * FROM movies WHERE id = ?")
+    .get(req.params.id);
   if (!movie) return res.status(404).json({ error: "Movie not found" });
   res.json(movie);
 });
+
+// TODO: Add route for
+// * Get movies by params
 
 // POST /movies
 // * Add a movie
@@ -34,35 +39,54 @@ router.post("/", (req, res) => {
     year,
     genre,
     synopsis: synopsis || null,
-    createdAt: new Date().toISOString,
+    createdAt: new Date().toISOString(),
   };
 
-  movies.push(movie);
+  db.prepare(
+    "INSERT INTO movies (id, title, director, year, genre, synopsis, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).run(
+    movie.id,
+    movie.title,
+    movie.director,
+    movie.year,
+    movie.genre,
+    movie.synopsis,
+    movie.createdAt,
+  );
   res.status(201).json(movie);
 });
 
 // PATCH /movies:id
 // * Update a movie
 router.patch("/:id", (req, res) => {
-  const movie = movies.find((m) => m.id === req.params.id);
+  const movie = db
+    .prepare("SELECT * FROM movies WHERE id = ?")
+    .get(req.params.id);
   if (!movie) return res.status(404).json({ error: "Movie not found" });
 
-  const { title, director, year, genre, synopsis } = req.body;
-  if (title) movie.title = title;
-  if (director) movie.director = director;
-  if (year) movie.year = year;
-  if (genre) movie.genre = genre;
-  if (synopsis !== undefined) movie.synopsis = synopsis;
+  const updates = { ...movie, ...req.body };
+  db.prepare(
+    "UPDATE movies SET title=?, director=?, year=?, genre=?, synopsis=? WHERE id=?",
+  ).run(
+    updates.title,
+    updates.director,
+    updates.year,
+    updates.genre,
+    updates.synopsis,
+    req.params.id,
+  );
 
-  res.json(movie);
+  res.json({ ...updates, created_at: movie.created_at });
 });
 
 // DELETE /movies/:id
 // * Remove a movie
 router.delete("/:id", (req, res) => {
-  const index = movies.findIndex((m) => m.id === req.params.id);
+  const movie = db
+    .prepare("SELECT id FROM movies WHERE id = ?")
+    .get(req.params.id);
   if (index === -1) return res.status(404).json({ error: "Movie not found" });
-  movies.splice(index, 1);
+  db.prepare("DELETE FROM movies WHERE id = ?").run(req.params.id);
   res.status(204).send();
 });
 
