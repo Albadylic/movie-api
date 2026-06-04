@@ -64,11 +64,47 @@ router.get("/", (req, res) => {
 // Get /reviews?userId=:id
 // * Get reviews for a user
 router.get("/", (req, res) => {
-  const { userId } = req.query;
+  const {
+    userId,
+    sort = "created_at",
+    order = "desc",
+    page = 1,
+    limit = 20,
+    ...filters
+  } = req.query;
+
+  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "title";
+  const sortDir = order === "asc" ? "ASC" : "DESC";
+
+  const conditions = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (FILTERABLE_FIELDS.includes(key)) {
+      conditions.push(`${key} = ?`);
+      params.push(value);
+    }
+  }
+
+  const where = conditions.length ? `AND ${conditions.join(" AND ")}` : "";
+  const offset = (Number(page) - 1) * Number(limit);
+
   const reviews = db
-    .prepare("SELECT * FROM reviews WHERE user_id = ?")
-    .all(userId);
-  res.json(reviews);
+    .prepare(
+      `SELECT * FROM reviews WHERE user_id = ? ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
+    )
+    .all(userId, ...params, Number(limit), offset);
+
+  const reviewCount = db
+    .prepare(`SELECT COUNT(*) as total FROM reviews WHERE user_id = ? ${where}`)
+    .get(userId, ...params);
+
+  res.json({
+    data: reviews,
+    total: reviewCount.total,
+    page: Number(page),
+    limit: Number(limit),
+  });
 });
 
 // POST /reviews
