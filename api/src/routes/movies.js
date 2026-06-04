@@ -3,10 +3,44 @@ const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
 
+// better-sqlite3 can only parameterise values (not columns)
+// We will whitelist sort fields to prevent injection
+const SORTABLE_FIELDS = ["title", "year", "director", "genre"];
+const FILTERABLE_FIELDS = ["genre", "director", "year"];
+
 // GET /movies
 // * List all movies
 router.get("/", (req, res) => {
-  const movies = db.prepare("SELECT * FROM movies").all();
+  const {
+    sort = "title",
+    order = "desc",
+    page = 1,
+    limit = 20,
+    ...filters
+  } = req.query;
+
+  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "title";
+  const sortDir = order === "asc" ? "ASC" : "DESC";
+
+  const conditions = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (FILTERABLE_FIELDS.includes(key)) {
+      conditions.push(`${key} = ?`);
+      params.push(value);
+    }
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const offset = (Number(page) - 1) * Number(limit);
+
+  const movies = db
+    .prepare(
+      `SELECT * FROM movies ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
+    )
+    .all(...params, Number(limit), offset);
+
   res.json(movies);
 });
 
@@ -19,9 +53,6 @@ router.get("/:id", (req, res) => {
   if (!movie) return res.status(404).json({ error: "Movie not found" });
   res.json(movie);
 });
-
-// TODO: Add route for
-// * Get movies by params
 
 // POST /movies
 // * Add a movie
