@@ -3,13 +3,46 @@ const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
 
+// CHALLENGE: Add variables for SORTABLE_FIELDS and FILTERABLE_FIELDS
+// Allow sorting on rating and created_at
+// Allow filtering by rating
+
+const SORTABLE_FIELDS = ["rating", "created_at"];
+const FILTERABLE_FIELDS = ["rating"];
+
 // Get /reviews?movieId=:id
 // * Get reviews for a movie
 router.get("/", (req, res) => {
-  const { movieId } = req.query;
+  const {
+    movieId,
+    sort = "created_at",
+    order = "desc",
+    page = 1,
+    limit = 20,
+    ...filters
+  } = req.query;
+
+  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "title";
+  const sortDir = order === "asc" ? "ASC" : "DESC";
+
+  const conditions = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (FILTERABLE_FIELDS.includes(key)) {
+      conditions.push(`${key} = ?`);
+      params.push(value);
+    }
+  }
+
+  const where = conditions.length ? `AND ${conditions.join(" AND ")}` : "";
+  const offset = (Number(page) - 1) * Number(limit);
+
   const reviews = db
-    .prepare("SELECT * FROM reviews WHERE movie_id = ?")
-    .all(movieId);
+    .prepare(
+      `SELECT * FROM reviews WHERE movie_id = ? ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
+    )
+    .all(movieId, ...params, Number(limit), offset);
   res.json(reviews);
 });
 
