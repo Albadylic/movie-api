@@ -41,7 +41,16 @@ router.get("/", (req, res) => {
     )
     .all(...params, Number(limit), offset);
 
-  res.json(movies);
+  const movieCount = db
+    .prepare(`SELECT COUNT(*) as total FROM movies ${where}`)
+    .get(...params);
+
+  res.json({
+    data: movies,
+    total: movieCount.total,
+    page: Number(page),
+    limit: Number(limit),
+  });
 });
 
 // GET /movies/:id
