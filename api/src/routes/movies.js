@@ -10,6 +10,8 @@ const FILTERABLE_FIELDS = ["genre", "director", "year"];
 
 // GET /movies
 // * List all movies
+// Endpoints look like:
+//  GET /movies?genre=Drama&director=Nolan&sort=year&order=desc&page=2&limit=10
 router.get("/", (req, res) => {
   const {
     sort = "title",

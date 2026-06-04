@@ -3,8 +3,6 @@ const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
 
-const reviews = [];
-
 // Get /reviews?movieId=:id
 // * Get reviews for a movie
 router.get("/", (req, res) => {
@@ -12,6 +10,16 @@ router.get("/", (req, res) => {
   const reviews = db
     .prepare("SELECT * FROM reviews WHERE movie_id = ?")
     .all(movieId);
+  res.json(reviews);
+});
+
+// Get /reviews?userId=:id
+// * Get reviews for a user
+router.get("/", (req, res) => {
+  const { userId } = req.query;
+  const reviews = db
+    .prepare("SELECT * FROM reviews WHERE user_id = ?")
+    .all(userId);
   res.json(reviews);
 });
 
