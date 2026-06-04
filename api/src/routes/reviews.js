@@ -18,53 +18,6 @@ const FILTERABLE_FIELDS = ["rating"];
 router.get("/", (req, res) => {
   const {
     movieId,
-    sort = "created_at",
-    order = "desc",
-    page = 1,
-    limit = 20,
-    ...filters
-  } = req.query;
-
-  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "created_at";
-  const sortDir = order === "asc" ? "ASC" : "DESC";
-
-  const conditions = [];
-  const params = [];
-
-  for (const [key, value] of Object.entries(filters)) {
-    if (FILTERABLE_FIELDS.includes(key)) {
-      conditions.push(`${key} = ?`);
-      params.push(value);
-    }
-  }
-
-  const where = conditions.length ? `AND ${conditions.join(" AND ")}` : "";
-  const offset = (Number(page) - 1) * Number(limit);
-
-  const reviews = db
-    .prepare(
-      `SELECT * FROM reviews WHERE movie_id = ? ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
-    )
-    .all(movieId, ...params, Number(limit), offset);
-
-  const reviewCount = db
-    .prepare(
-      `SELECT COUNT(*) as total FROM reviews WHERE movie_id = ? ${where}`,
-    )
-    .get(movieId, ...params);
-
-  res.json({
-    data: reviews,
-    total: reviewCount.total,
-    page: Number(page),
-    limit: Number(limit),
-  });
-});
-
-// Get /reviews?userId=:id
-// * Get reviews for a user
-router.get("/", (req, res) => {
-  const {
     userId,
     sort = "created_at",
     order = "desc",
@@ -73,6 +26,16 @@ router.get("/", (req, res) => {
     ...filters
   } = req.query;
 
+  if (!movieId && !userId) {
+    return res.status(400).json({ error: "Missing query parameters" });
+  }
+
+  // Assume we'll only ever have movieId OR userId
+  // We wouldn't need to search for reviews by a single user for a single movie
+
+  const baseCondition = movieId ? "movie_id = ?" : "user_id = ?";
+  const baseParam = movieId ?? userId;
+
   const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "created_at";
   const sortDir = order === "asc" ? "ASC" : "DESC";
 
@@ -91,13 +54,15 @@ router.get("/", (req, res) => {
 
   const reviews = db
     .prepare(
-      `SELECT * FROM reviews WHERE user_id = ? ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
+      `SELECT * FROM reviews WHERE ${baseCondition} ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
     )
-    .all(userId, ...params, Number(limit), offset);
+    .all(baseParam, ...params, Number(limit), offset);
 
   const reviewCount = db
-    .prepare(`SELECT COUNT(*) as total FROM reviews WHERE user_id = ? ${where}`)
-    .get(userId, ...params);
+    .prepare(
+      `SELECT COUNT(*) as total FROM reviews WHERE movie_id = ? ${where}`,
+    )
+    .get(movieId, ...params);
 
   res.json({
     data: reviews,
