@@ -60,9 +60,9 @@ router.get("/", (req, res) => {
 
   const reviewCount = db
     .prepare(
-      `SELECT COUNT(*) as total FROM reviews WHERE movie_id = ? ${where}`,
+      `SELECT COUNT(*) as total FROM reviews WHERE ${baseCondition} ${where}`,
     )
-    .get(movieId, ...params);
+    .get(baseParam, ...params);
 
   res.json({
     data: reviews,
@@ -157,8 +157,8 @@ router.patch("/:id", (req, res) => {
   if (comment !== undefined) review.comment = comment;
 
   db.prepare("UPDATE reviews SET rating=?, comment=? WHERE id=?").run(
-    rating,
-    comment,
+    review.rating,
+    review.comment,
     req.params.id,
   );
 
