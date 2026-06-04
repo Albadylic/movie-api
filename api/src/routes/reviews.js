@@ -10,6 +10,9 @@ const db = require("../db");
 const SORTABLE_FIELDS = ["rating", "created_at"];
 const FILTERABLE_FIELDS = ["rating"];
 
+// CHALLENGE 1: follow the pattern from movies.js
+// Add sorting, filtering and pagination to the /reviews?movieId=:id endpoint
+
 // Get /reviews?movieId=:id
 // * Get reviews for a movie
 router.get("/", (req, res) => {
@@ -43,7 +46,19 @@ router.get("/", (req, res) => {
       `SELECT * FROM reviews WHERE movie_id = ? ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
     )
     .all(movieId, ...params, Number(limit), offset);
-  res.json(reviews);
+
+  const reviewCount = db
+    .prepare(
+      `SELECT COUNT(*) as total FROM reviews WHERE movie_id = ? ${where}`,
+    )
+    .get(movieId, ...params);
+
+  res.json({
+    data: reviews,
+    total: reviewCount.total,
+    page: Number(page),
+    limit: Number(limit),
+  });
 });
 
 // Get /reviews?userId=:id
