@@ -10,7 +10,7 @@ const db = require("../db");
 const SORTABLE_FIELDS = ["rating", "created_at"];
 const FILTERABLE_FIELDS = ["rating"];
 
-// CHALLENGE 1: follow the pattern from movies.js
+// CHALLENGE: follow the pattern from movies.js
 // Add sorting, filtering and pagination to the /reviews?movieId=:id endpoint
 
 // Get /reviews?movieId=:id
@@ -25,7 +25,7 @@ router.get("/", (req, res) => {
     ...filters
   } = req.query;
 
-  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "title";
+  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "created_at";
   const sortDir = order === "asc" ? "ASC" : "DESC";
 
   const conditions = [];
@@ -73,7 +73,7 @@ router.get("/", (req, res) => {
     ...filters
   } = req.query;
 
-  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "title";
+  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "created_at";
   const sortDir = order === "asc" ? "ASC" : "DESC";
 
   const conditions = [];
@@ -112,6 +112,14 @@ router.get("/", (req, res) => {
 router.post("/", (req, res) => {
   const { userId, movieId, rating, comment } = req.body;
 
+  if (!userId || !movieId || rating === undefined) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  if (rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" });
+  }
+
   // Check the movie exists
   const movie = db.prepare("SELECT id FROM movies WHERE id = ?").get(movieId);
   if (!movie) return res.status(404).json({ error: "Movie not found" });
@@ -120,14 +128,6 @@ router.post("/", (req, res) => {
   // This can be a challenge
   const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
-
-  if (!userId || !movieId || rating === undefined) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  if (rating < 1 || rating > 5) {
-    return res.status(400).json({ error: "Rating must be between 1 and 5" });
-  }
 
   const review = {
     id: randomUUID(),
@@ -155,7 +155,14 @@ router.post("/", (req, res) => {
     }
   }
 
-  res.status(201).json(review);
+  res.status(201).json({
+    id: review.id,
+    userId,
+    movieId,
+    rating,
+    comment,
+    createdAt: review.createdAt,
+  });
 });
 
 // PATCH /reviews/:id
@@ -185,8 +192,8 @@ router.patch("/:id", (req, res) => {
   if (comment !== undefined) review.comment = comment;
 
   db.prepare("UPDATE reviews SET rating=?, comment=? WHERE id=?").run(
-    newRating,
-    newComment,
+    rating,
+    comment,
     req.params.id,
   );
 

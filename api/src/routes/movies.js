@@ -14,14 +14,14 @@ const FILTERABLE_FIELDS = ["genre", "director", "year"];
 //  GET /movies?genre=Drama&director=Nolan&sort=year&order=desc&page=2&limit=10
 router.get("/", (req, res) => {
   const {
-    sort = "title",
+    sort = "created_at",
     order = "desc",
     page = 1,
     limit = 20,
     ...filters
   } = req.query;
 
-  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "title";
+  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "created_at";
   const sortDir = order === "asc" ? "ASC" : "DESC";
 
   const conditions = [];
@@ -127,7 +127,7 @@ router.delete("/:id", (req, res) => {
   const movie = db
     .prepare("SELECT id FROM movies WHERE id = ?")
     .get(req.params.id);
-  if (index === -1) return res.status(404).json({ error: "Movie not found" });
+  if (!movie) return res.status(404).json({ error: "Movie not found" });
   db.prepare("DELETE FROM movies WHERE id = ?").run(req.params.id);
   res.status(204).send();
 });
