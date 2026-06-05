@@ -163,8 +163,14 @@ router.delete("/:id", (req, res) => {
 
   if (!review) return res.status(404).json({ error: "Review not found" });
 
-  if (review.user_id !== userId) {
-    // And the user is not an admin
+  const userRole = db
+    .prepare("SELECT role FROM users WHERE id = ?")
+    .get(userId);
+
+  const isOwner = review.user_id === userId;
+  const isAdmin = user?.role === "ADMIN";
+
+  if (!isOwner && !isAdmin) {
     return res
       .status(403)
       .json({ error: "You can only delete your own reviews" });
