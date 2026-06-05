@@ -5,6 +5,7 @@ const db = require("../db");
 const { validate } = require("../middleware/validate");
 const { createUserSchema } = require("../schemas");
 const bcrypt = require("bcrypt");
+const formatUser = require("../helpers/formatUser");
 
 // POST /users
 // * Register a new user
@@ -20,28 +21,17 @@ router.post("/", validate(createUserSchema), async (req, res) => {
       .json({ error: "Account already exists for this email" });
   }
 
-  const user = {
-    id: randomUUID(),
-    name,
-    email,
-    role: "USER",
-    createdAt: new Date().toISOString(),
-  };
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const role = "USER";
 
   const passwordHash = await bcrypt.hash(password, 10);
 
   db.prepare(
     "INSERT INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-  ).run(
-    user.id,
-    user.name,
-    user.email,
-    passwordHash,
-    user.role,
-    user.createdAt,
-  );
+  ).run(id, name, email, passwordHash, role, createdAt);
 
-  res.status(201).json(user);
+  res.status(201).json(formatUser({ id, name, email, role, createdAt }));
 });
 
 // GET /users/:id
@@ -53,8 +43,7 @@ router.get("/:id", (req, res) => {
     .get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  const { password, ...safeUser } = user;
-  res.json(safeUser);
+  res.json(formatUser(user));
 });
 
 module.exports = router;
