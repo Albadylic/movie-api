@@ -4,11 +4,12 @@ const { randomUUID } = require("crypto");
 const db = require("../db");
 const { validate } = require("../middleware/validate");
 const { createUserSchema } = require("../schemas");
+const bcrypt = require("bcrypt");
 
 // POST /users
 // * Register a new user
-router.post("/", validate(createUserSchema), (req, res) => {
-  const { name, email } = req.body;
+router.post("/", validate(createUserSchema), async (req, res) => {
+  const { name, email, password } = req.body;
 
   const existingUser = db
     .prepare("SELECT id FROM users WHERE email = ?")
@@ -27,9 +28,18 @@ router.post("/", validate(createUserSchema), (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
+  const passwordHash = await bcrypt.hash(password, 10);
+
   db.prepare(
-    "INSERT INTO users (id, name, email, role, created_at) VALUES (?, ?, ?, ?, ?)",
-  ).run(user.id, user.name, user.email, user.role, user.createdAt);
+    "INSERT INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(
+    user.id,
+    user.name,
+    user.email,
+    passwordHash,
+    user.role,
+    user.createdAt,
+  );
 
   res.status(201).json(user);
 });
@@ -43,7 +53,8 @@ router.get("/:id", (req, res) => {
     .get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  res.json(user);
+  const { password, ...safeUser } = user;
+  res.json(safeUser);
 });
 
 module.exports = router;

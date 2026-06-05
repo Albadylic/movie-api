@@ -4,6 +4,7 @@ const { randomUUID } = require("crypto");
 const db = require("../db");
 const { validate } = require("../middleware/validate");
 const { createReviewSchema, updateReviewSchema } = require("../schemas");
+const { authenticate } = require("../middleware/authenticate");
 
 // CHALLENGE: Add variables for SORTABLE_FIELDS and FILTERABLE_FIELDS
 // Allow sorting on rating and created_at
@@ -76,8 +77,9 @@ router.get("/", (req, res) => {
 
 // POST /reviews
 // * Create a new review
-router.post("/", validate(createReviewSchema), (req, res) => {
-  const { userId, movieId, rating, comment } = req.body;
+router.post("/", authenticate, validate(createReviewSchema), (req, res) => {
+  const { movieId, rating, comment } = req.body;
+  const userId = req.user.id;
 
   // Check the movie exists
   const movie = db.prepare("SELECT id FROM movies WHERE id = ?").get(movieId);
@@ -126,8 +128,10 @@ router.post("/", validate(createReviewSchema), (req, res) => {
 
 // PATCH /reviews/:id
 // * Update an existing review
-router.patch("/:id", validate(updateReviewSchema), (req, res) => {
-  const { userId, rating, comment } = req.body;
+router.patch("/:id", authenticate, validate(updateReviewSchema), (req, res) => {
+  const { rating, comment } = req.body;
+  const userId = req.user.id;
+
   const review = db
     .prepare("SELECT * FROM reviews WHERE id = ?")
     .get(req.params.id);
@@ -155,17 +159,15 @@ router.patch("/:id", validate(updateReviewSchema), (req, res) => {
 
 // DELETE /reviews/:id
 // * Remove a review
-router.delete("/:id", (req, res) => {
-  const { userId } = req.body;
+router.delete("/:id", authenticate, (req, res) => {
+  const userId = req.user.id;
   const review = db
     .prepare("SELECT * FROM reviews WHERE id = ?")
     .get(req.params.id);
 
   if (!review) return res.status(404).json({ error: "Review not found" });
 
-  const userRole = db
-    .prepare("SELECT role FROM users WHERE id = ?")
-    .get(userId);
+  const user = db.prepare("SELECT role FROM users WHERE id = ?").get(userId);
 
   const isOwner = review.user_id === userId;
   const isAdmin = user?.role === "ADMIN";

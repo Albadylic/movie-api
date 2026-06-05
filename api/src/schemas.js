@@ -3,6 +3,7 @@ const { z } = require("zod");
 const createUserSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
+  password: z.string().min(8),
 });
 
 // Example
@@ -38,7 +39,6 @@ const updateMovieSchema = z
 
 // Example
 const createReviewSchema = z.object({
-  userId: z.string().min(1),
   movieId: z.string().min(1),
   rating: z.number().int().min(1).max(5),
   comment: z.string().optional(),
@@ -46,7 +46,6 @@ const createReviewSchema = z.object({
 
 // Challenge
 const updateReviewSchema = z.object({
-  userId: z.string().min(1),
   rating: z.number().int().min(1).max(5).optional(),
   comment: z.string().optional(),
 });

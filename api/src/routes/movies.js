@@ -5,6 +5,7 @@ const db = require("../db");
 const { validate } = require("../middleware/validate");
 const { createMovieSchema, updateMovieSchema } = require("../schemas");
 const { requireAdmin } = require("../middleware/requireAdmin");
+const { authenticate } = require("../middleware/authenticate");
 
 // better-sqlite3 can only parameterise values (not columns)
 // We will whitelist sort fields to prevent injection
@@ -70,59 +71,71 @@ router.get("/:id", (req, res) => {
 
 // POST /movies
 // * Add a movie
-router.post("/", requireAdmin, validate(createMovieSchema), (req, res) => {
-  const { title, director, year, genre, synopsis } = req.body;
+router.post(
+  "/",
+  authenticate,
+  requireAdmin,
+  validate(createMovieSchema),
+  (req, res) => {
+    const { title, director, year, genre, synopsis } = req.body;
 
-  const movie = {
-    id: randomUUID(),
-    title,
-    director,
-    year,
-    genre,
-    synopsis: synopsis || null,
-    createdAt: new Date().toISOString(),
-  };
+    const movie = {
+      id: randomUUID(),
+      title,
+      director,
+      year,
+      genre,
+      synopsis: synopsis || null,
+      createdAt: new Date().toISOString(),
+    };
 
-  db.prepare(
-    "INSERT INTO movies (id, title, director, year, genre, synopsis, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).run(
-    movie.id,
-    movie.title,
-    movie.director,
-    movie.year,
-    movie.genre,
-    movie.synopsis,
-    movie.createdAt,
-  );
-  res.status(201).json(movie);
-});
+    db.prepare(
+      "INSERT INTO movies (id, title, director, year, genre, synopsis, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      movie.id,
+      movie.title,
+      movie.director,
+      movie.year,
+      movie.genre,
+      movie.synopsis,
+      movie.createdAt,
+    );
+    res.status(201).json(movie);
+  },
+);
 
 // PATCH /movies:id
 // * Update a movie
-router.patch("/:id", requireAdmin, validate(updateMovieSchema), (req, res) => {
-  const movie = db
-    .prepare("SELECT * FROM movies WHERE id = ?")
-    .get(req.params.id);
-  if (!movie) return res.status(404).json({ error: "Movie not found" });
+router.patch(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(updateMovieSchema),
+  (req, res) => {
+    const movie = db
+      .prepare("SELECT * FROM movies WHERE id = ?")
+      .get(req.params.id);
+    if (!movie) return res.status(404).json({ error: "Movie not found" });
 
-  const updates = { ...movie, ...req.body };
-  db.prepare(
-    "UPDATE movies SET title=?, director=?, year=?, genre=?, synopsis=? WHERE id=?",
-  ).run(
-    updates.title,
-    updates.director,
-    updates.year,
-    updates.genre,
-    updates.synopsis,
-    req.params.id,
-  );
+    const updates = { ...movie, ...req.body };
+    db.prepare(
+      "UPDATE movies SET title=?, director=?, year=?, genre=?, synopsis=? WHERE id=?",
+    ).run(
+      updates.title,
+      updates.director,
+      updates.year,
+      updates.genre,
+      updates.synopsis,
+      req.params.id,
+    );
 
-  res.json({ ...updates, created_at: movie.created_at });
-});
+    res.json({ ...updates, created_at: movie.created_at });
+  },
+);
 
 // DELETE /movies/:id
 // * Remove a movie
-router.delete("/:id", requireAdmin, (req, res) => {
+router.delete("/:id", authenticate, requireAdmin, (req, res) => {
   const movie = db
     .prepare("SELECT id FROM movies WHERE id = ?")
     .get(req.params.id);
