@@ -4,6 +4,7 @@ const { randomUUID } = require("crypto");
 const db = require("../db");
 const { validate } = require("../middleware/validate");
 const { createMovieSchema, updateMovieSchema } = require("../schemas");
+const { requireAdmin } = require("../middleware/requireAdmin");
 
 // better-sqlite3 can only parameterise values (not columns)
 // We will whitelist sort fields to prevent injection
@@ -69,7 +70,7 @@ router.get("/:id", (req, res) => {
 
 // POST /movies
 // * Add a movie
-router.post("/", validate(createMovieSchema), (req, res) => {
+router.post("/", requireAdmin, validate(createMovieSchema), (req, res) => {
   const { title, director, year, genre, synopsis } = req.body;
 
   const movie = {
@@ -98,7 +99,7 @@ router.post("/", validate(createMovieSchema), (req, res) => {
 
 // PATCH /movies:id
 // * Update a movie
-router.patch("/:id", validate(updateMovieSchema), (req, res) => {
+router.patch("/:id", requireAdmin, validate(updateMovieSchema), (req, res) => {
   const movie = db
     .prepare("SELECT * FROM movies WHERE id = ?")
     .get(req.params.id);
@@ -121,7 +122,7 @@ router.patch("/:id", validate(updateMovieSchema), (req, res) => {
 
 // DELETE /movies/:id
 // * Remove a movie
-router.delete("/:id", (req, res) => {
+router.delete("/:id", requireAdmin, (req, res) => {
   const movie = db
     .prepare("SELECT id FROM movies WHERE id = ?")
     .get(req.params.id);
