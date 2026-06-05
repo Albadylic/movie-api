@@ -2,13 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
-const { z } = require("zod");
 const { validate } = require("../middleware/validate");
-
-const createUserSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-});
+const { createUserSchema } = require("../schemas");
 
 // POST /users
 // * Register a new user

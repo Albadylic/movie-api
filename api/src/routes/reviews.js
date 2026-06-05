@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
+const { validate } = require("../middleware/validate");
+const { createReviewSchema, updateReviewSchema } = require("../schemas");
 
 // CHALLENGE: Add variables for SORTABLE_FIELDS and FILTERABLE_FIELDS
 // Allow sorting on rating and created_at
@@ -74,16 +76,8 @@ router.get("/", (req, res) => {
 
 // POST /reviews
 // * Create a new review
-router.post("/", (req, res) => {
+router.post("/", validate(createReviewSchema), (req, res) => {
   const { userId, movieId, rating, comment } = req.body;
-
-  if (!userId || !movieId || rating === undefined) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  if (rating < 1 || rating > 5) {
-    return res.status(400).json({ error: "Rating must be between 1 and 5" });
-  }
 
   // Check the movie exists
   const movie = db.prepare("SELECT id FROM movies WHERE id = ?").get(movieId);
@@ -132,7 +126,7 @@ router.post("/", (req, res) => {
 
 // PATCH /reviews/:id
 // * Update an existing review
-router.patch("/:id", (req, res) => {
+router.patch("/:id", validate(updateReviewSchema), (req, res) => {
   const { userId, rating, comment } = req.body;
   const review = db
     .prepare("SELECT * FROM reviews WHERE id = ?")
@@ -147,13 +141,7 @@ router.patch("/:id", (req, res) => {
       .json({ error: "You can only update your own reviews" });
   }
 
-  if (rating !== undefined) {
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ error: "Rating must be between 1 and 5" });
-    }
-    review.rating = rating;
-  }
-
+  if (rating !== undefined) review.rating = rating;
   if (comment !== undefined) review.comment = comment;
 
   db.prepare("UPDATE reviews SET rating=?, comment=? WHERE id=?").run(

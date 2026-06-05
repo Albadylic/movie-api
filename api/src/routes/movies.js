@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
+const { validate } = require("../middleware/validate");
+const { createMovieSchema, updateMovieSchema } = require("../schemas");
 
 // better-sqlite3 can only parameterise values (not columns)
 // We will whitelist sort fields to prevent injection
@@ -67,12 +69,8 @@ router.get("/:id", (req, res) => {
 
 // POST /movies
 // * Add a movie
-router.post("/", (req, res) => {
+router.post("/", validate(createMovieSchema), (req, res) => {
   const { title, director, year, genre, synopsis } = req.body;
-
-  if (!title || !director || !year || !genre) {
-    return res.status(400).json({ error: "Missing data from movie listing" });
-  }
 
   const movie = {
     id: randomUUID(),
@@ -100,7 +98,7 @@ router.post("/", (req, res) => {
 
 // PATCH /movies:id
 // * Update a movie
-router.patch("/:id", (req, res) => {
+router.patch("/:id", validate(updateMovieSchema), (req, res) => {
   const movie = db
     .prepare("SELECT * FROM movies WHERE id = ?")
     .get(req.params.id);
