@@ -19,18 +19,22 @@ const createMovieSchema = z.object({
 });
 
 // Challenge
-const updateMovieSchema = z.object({
-  title: z.string().min(1).optional(),
-  director: z.string().min(1).optional(),
-  year: z
-    .number()
-    .int()
-    .min(1888)
-    .max(new Date().getFullYear() + 1)
-    .optional(),
-  genre: z.string().min(1).optional(),
-  synopsis: z.string().optional(),
-});
+const updateMovieSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    director: z.string().min(1).optional(),
+    year: z
+      .number()
+      .int()
+      .min(1888)
+      .max(new Date().getFullYear() + 1)
+      .optional(),
+    genre: z.string().min(1).optional(),
+    synopsis: z.string().optional(),
+  })
+  .refine((data) => Object.values(data).some((v) => v !== undefined), {
+    message: "At least one field is required for update",
+  });
 
 // Example
 const createReviewSchema = z.object({
