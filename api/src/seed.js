@@ -1,17 +1,8 @@
 const { randomUUID } = require("crypto");
-const bcrypt = require("bcrypt");
 const db = require("./db");
 
-async function seed() {
-  // Clear existing data in reverse dependency order
-  db.exec("DELETE FROM reviews");
-  db.exec("DELETE FROM movies");
-  db.exec("DELETE FROM users");
-
+function seed() {
   const now = () => new Date().toISOString();
-
-  // --- Users ---
-  const passwordHash = await bcrypt.hash("password123", 10);
 
   const users = [
     {
@@ -70,22 +61,6 @@ async function seed() {
     },
   ];
 
-  // Before we add passwords
-  const insertUser = db.prepare(
-    "INSERT INTO users (id, name, email, role, created_at) VALUES (?, ?, ?, ?, ?)",
-  );
-  for (const u of users) {
-    insertUser.run(u.id, u.name, u.email, u.role, now());
-  }
-
-  // const insertUser = db.prepare(
-  //   "INSERT INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-  // );
-  // for (const u of users) {
-  //   insertUser.run(u.id, u.name, u.email, passwordHash, u.role, now());
-  // }
-
-  // --- Movies ---
   const movies = [
     {
       id: randomUUID(),
@@ -224,23 +199,6 @@ async function seed() {
     },
   ];
 
-  const insertMovie = db.prepare(
-    "INSERT INTO movies (id, title, director, year, genre, synopsis, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  );
-  for (const m of movies) {
-    insertMovie.run(
-      m.id,
-      m.title,
-      m.director,
-      m.year,
-      m.genre,
-      m.synopsis ?? null,
-      now(),
-    );
-  }
-
-  // --- Reviews ---
-  // Each (movie_id, user_id) pair must be unique — one review per user per movie
   const reviewData = [
     {
       user: users[1],
@@ -356,7 +314,6 @@ async function seed() {
       comment: "A genuinely unique film.",
     },
 
-    // The Shawshank Redemption
     {
       user: users[0],
       movie: movies[6],
@@ -394,7 +351,6 @@ async function seed() {
       comment: "Every rewatch reveals something new.",
     },
 
-    // Pulp Fiction
     {
       user: users[0],
       movie: movies[7],
@@ -414,7 +370,6 @@ async function seed() {
       comment: "Stylish but I found it a bit gratuitous.",
     },
 
-    // 2001: A Space Odyssey
     {
       user: users[0],
       movie: movies[8],
@@ -434,7 +389,6 @@ async function seed() {
       comment: "Brilliant filmmaking, not always easy watching.",
     },
 
-    // Amélie
     {
       user: users[0],
       movie: movies[9],
@@ -454,7 +408,6 @@ async function seed() {
       comment: "The most charming film I have ever seen.",
     },
 
-    // Get Out
     {
       user: users[0],
       movie: movies[10],
@@ -474,7 +427,6 @@ async function seed() {
       comment: "Clever, tense, and thought-provoking.",
     },
 
-    // The Hurt Locker
     {
       user: users[0],
       movie: movies[11],
@@ -494,7 +446,6 @@ async function seed() {
       comment: "Renner is outstanding.",
     },
 
-    // American Psycho
     {
       user: users[0],
       movie: movies[12],
@@ -514,7 +465,6 @@ async function seed() {
       comment: "Entertaining but deeply uncomfortable.",
     },
 
-    // Mean Girls
     {
       user: users[0],
       movie: movies[13],
@@ -552,7 +502,6 @@ async function seed() {
       comment: "Fun but fairly predictable.",
     },
 
-    // Clueless
     {
       user: users[0],
       movie: movies[14],
@@ -572,7 +521,6 @@ async function seed() {
       comment: "Alicia Silverstone is iconic in this role.",
     },
 
-    // Isla's 5 random reviews
     {
       user: users[8],
       movie: movies[1],
@@ -600,26 +548,58 @@ async function seed() {
     { user: users[8], movie: movies[13], rating: 5, comment: "So fetch." },
   ];
 
-  const insertReview = db.prepare(
-    "INSERT INTO reviews (id, movie_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-  );
-  for (const r of reviewData) {
-    insertReview.run(
-      randomUUID(),
-      r.movie.id,
-      r.user.id,
-      r.rating,
-      r.comment ?? null,
-      now(),
-    );
-  }
+  db.serialize(() => {
+    db.run("DELETE FROM reviews");
+    db.run("DELETE FROM movies");
+    db.run("DELETE FROM users");
 
-  console.log(
-    `Seeded ${users.length} users, ${movies.length} movies, ${reviewData.length} reviews.`,
-  );
+    const insertUser = db.prepare(
+      "INSERT INTO users (id, name, email, role, created_at) VALUES (?, ?, ?, ?, ?)",
+    );
+    for (const u of users) {
+      insertUser.run(u.id, u.name, u.email, u.role, now());
+    }
+    insertUser.finalize();
+
+    const insertMovie = db.prepare(
+      "INSERT INTO movies (id, title, director, year, genre, synopsis, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
+    for (const m of movies) {
+      insertMovie.run(
+        m.id,
+        m.title,
+        m.director,
+        m.year,
+        m.genre,
+        m.synopsis ?? null,
+        now(),
+      );
+    }
+    insertMovie.finalize();
+
+    const insertReview = db.prepare(
+      "INSERT INTO reviews (id, movie_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    );
+    for (const r of reviewData) {
+      insertReview.run(
+        randomUUID(),
+        r.movie.id,
+        r.user.id,
+        r.rating,
+        r.comment ?? null,
+        now(),
+      );
+    }
+    insertReview.finalize((err) => {
+      if (err) {
+        console.error("Seed failed:", err);
+        process.exit(1);
+      }
+      console.log(
+        `Seeded ${users.length} users, ${movies.length} movies, ${reviewData.length} reviews.`,
+      );
+    });
+  });
 }
 
-seed().catch((err) => {
-  console.error("Seed failed:", err);
-  process.exit(1);
-});
+seed();
