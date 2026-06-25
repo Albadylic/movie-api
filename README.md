@@ -5,7 +5,7 @@ A REST API for browsing movies and leaving reviews. Built with Node.js, Express,
 ## Stack
 
 - **Express 5** — web framework
-- **better-sqlite3** — SQLite database
+- **sqlite3** — SQLite database
 - **Zod** — request validation
 - **bcrypt** — password hashing
 - **jsonwebtoken** — JWT authentication
@@ -35,35 +35,35 @@ The API runs on `http://localhost:3000` by default.
 
 ### Auth
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| POST | `/auth/login` | Log in and receive a JWT token | — |
+| Method | Path          | Description                    | Auth |
+| ------ | ------------- | ------------------------------ | ---- |
+| POST   | `/auth/login` | Log in and receive a JWT token | —    |
 
 ### Users
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| POST | `/users` | Register a new user | — |
-| GET | `/users/:id` | Get a user by ID | — |
+| Method | Path         | Description         | Auth |
+| ------ | ------------ | ------------------- | ---- |
+| POST   | `/users`     | Register a new user | —    |
+| GET    | `/users/:id` | Get a user by ID    | —    |
 
 ### Movies
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/movies` | List all movies | — |
-| GET | `/movies/:id` | Get a single movie | — |
-| POST | `/movies` | Add a movie | Admin |
-| PATCH | `/movies/:id` | Update a movie | Admin |
-| DELETE | `/movies/:id` | Delete a movie | Admin |
+| Method | Path          | Description        | Auth  |
+| ------ | ------------- | ------------------ | ----- |
+| GET    | `/movies`     | List all movies    | —     |
+| GET    | `/movies/:id` | Get a single movie | —     |
+| POST   | `/movies`     | Add a movie        | Admin |
+| PATCH  | `/movies/:id` | Update a movie     | Admin |
+| DELETE | `/movies/:id` | Delete a movie     | Admin |
 
 ### Reviews
 
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/reviews` | Get reviews by `?movieId=` or `?userId=` | — |
-| POST | `/reviews` | Leave a review | Required |
-| PATCH | `/reviews/:id` | Update your own review | Required |
-| DELETE | `/reviews/:id` | Delete a review | Required |
+| Method | Path           | Description                              | Auth     |
+| ------ | -------------- | ---------------------------------------- | -------- |
+| GET    | `/reviews`     | Get reviews by `?movieId=` or `?userId=` | —        |
+| POST   | `/reviews`     | Leave a review                           | Required |
+| PATCH  | `/reviews/:id` | Update your own review                   | Required |
+| DELETE | `/reviews/:id` | Delete a review                          | Required |
 
 ## Authentication
 
@@ -107,16 +107,16 @@ sqlite3 dev.db "UPDATE users SET role='ADMIN' WHERE email='alice@example.com';"
 
 `GET /movies` and `GET /reviews` support filtering, sorting, and pagination:
 
-| Param | Description | Example |
-|-------|-------------|---------|
-| `genre` | Filter movies by genre | `?genre=Drama` |
-| `director` | Filter movies by director | `?director=Nolan` |
-| `year` | Filter movies by year | `?year=2010` |
-| `rating` | Filter reviews by rating | `?rating=5` |
-| `sort` | Sort field | `?sort=year` |
-| `order` | Sort direction: `asc` or `desc` | `?order=asc` |
-| `page` | Page number (default: 1) | `?page=2` |
-| `limit` | Results per page (default: 20) | `?limit=10` |
+| Param      | Description                     | Example           |
+| ---------- | ------------------------------- | ----------------- |
+| `genre`    | Filter movies by genre          | `?genre=Drama`    |
+| `director` | Filter movies by director       | `?director=Nolan` |
+| `year`     | Filter movies by year           | `?year=2010`      |
+| `rating`   | Filter reviews by rating        | `?rating=5`       |
+| `sort`     | Sort field                      | `?sort=year`      |
+| `order`    | Sort direction: `asc` or `desc` | `?order=asc`      |
+| `page`     | Page number (default: 1)        | `?page=2`         |
+| `limit`    | Results per page (default: 20)  | `?limit=10`       |
 
 Responses are wrapped in a pagination envelope:
 
@@ -131,13 +131,13 @@ Responses are wrapped in a pagination envelope:
 
 ## Common errors
 
-| Status | Cause |
-|--------|-------|
-| 400 | Missing or invalid field — check the request body matches the schema |
-| 401 | No token provided or token is invalid/expired |
-| 403 | Insufficient role, or trying to modify another user's resource |
-| 404 | Resource not found — verify the ID exists |
-| 409 | Conflict — e.g. email already registered, or duplicate review |
+| Status | Cause                                                                |
+| ------ | -------------------------------------------------------------------- |
+| 400    | Missing or invalid field — check the request body matches the schema |
+| 401    | No token provided or token is invalid/expired                        |
+| 403    | Insufficient role, or trying to modify another user's resource       |
+| 404    | Resource not found — verify the ID exists                            |
+| 409    | Conflict — e.g. email already registered, or duplicate review        |
 
 ## Running tests
 

@@ -2,184 +2,130 @@ const express = require("express");
 const router = express.Router();
 const { randomUUID } = require("crypto");
 const db = require("../db");
-const { validate } = require("../middleware/validate");
-const { createReviewSchema, updateReviewSchema } = require("../schemas");
-const { authenticate } = require("../middleware/authenticate");
 
-// CHALLENGE: Add variables for SORTABLE_FIELDS and FILTERABLE_FIELDS
-// Allow sorting on rating and created_at
-// Allow filtering by rating
-
-const SORTABLE_FIELDS = ["rating", "created_at"];
-const FILTERABLE_FIELDS = ["rating"];
-
-// CHALLENGE: follow the pattern from movies.js
-// Add sorting, filtering and pagination to the /reviews?movieId=:id endpoint
-
-// Get /reviews?movieId=:id
-// * Get reviews for a movie
+// GET /reviews?movieId=:id
 router.get("/", (req, res) => {
-  const {
-    movieId,
-    userId,
-    sort = "created_at",
-    order = "desc",
-    page = 1,
-    limit = 20,
-    ...filters
-  } = req.query;
-
-  if (!movieId && !userId) {
-    return res.status(400).json({ error: "Missing query parameters" });
-  }
-
-  // Assume we'll only ever have movieId OR userId
-  // We wouldn't need to search for reviews by a single user for a single movie
-
-  const baseCondition = movieId ? "movie_id = ?" : "user_id = ?";
-  const baseParam = movieId ?? userId;
-
-  const sortCol = SORTABLE_FIELDS.includes(sort) ? sort : "created_at";
-  const sortDir = order === "asc" ? "ASC" : "DESC";
-
-  const conditions = [];
-  const params = [];
-
-  for (const [key, value] of Object.entries(filters)) {
-    if (FILTERABLE_FIELDS.includes(key)) {
-      conditions.push(`${key} = ?`);
-      params.push(value);
-    }
-  }
-
-  const where = conditions.length ? `AND ${conditions.join(" AND ")}` : "";
-  const offset = (Number(page) - 1) * Number(limit);
-
-  const reviews = db
-    .prepare(
-      `SELECT * FROM reviews WHERE ${baseCondition} ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`,
-    )
-    .all(baseParam, ...params, Number(limit), offset);
-
-  const reviewCount = db
-    .prepare(
-      `SELECT COUNT(*) as total FROM reviews WHERE ${baseCondition} ${where}`,
-    )
-    .get(baseParam, ...params);
-
-  res.json({
-    data: reviews,
-    total: reviewCount.total,
-    page: Number(page),
-    limit: Number(limit),
+  const { movieId } = req.query;
+  db.all("SELECT * FROM reviews WHERE movie_id = ?", [movieId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
   });
 });
 
 // POST /reviews
-// * Create a new review
-router.post("/", authenticate, validate(createReviewSchema), (req, res) => {
-  const { movieId, rating, comment } = req.body;
-  const userId = req.user.id;
+router.post("/", (req, res) => {
+  const { userId, movieId, rating, comment } = req.body;
 
-  // Check the movie exists
-  const movie = db.prepare("SELECT id FROM movies WHERE id = ?").get(movieId);
-  if (!movie) return res.status(404).json({ error: "Movie not found" });
-
-  // Check the user exists
-  // This can be a challenge
-  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  const review = {
-    id: randomUUID(),
-    createdAt: new Date().toISOString(),
-  };
-
-  try {
-    db.prepare(
-      "INSERT INTO reviews (id, movie_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    ).run(
-      review.id,
-      movieId,
-      userId,
-      rating,
-      comment ?? null,
-      review.createdAt,
-    );
-  } catch (err) {
-    if (err.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res
-        .status(409)
-        .json({ error: "You have already reviewed this movie" });
-    } else {
-      throw err; // Throw a generic error to the catch-all handler in index.js
-    }
+  if (!userId || !movieId || rating === undefined) {
+    return res.status(400).json({ error: "Missing required fields" });
   }
 
-  res.status(201).json({
-    id: review.id,
-    userId,
-    movieId,
-    rating,
-    comment,
-    createdAt: review.createdAt,
+  if (rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" });
+  }
+
+  // Check the movie exists
+  db.get("SELECT id FROM movies WHERE id = ?", [movieId], (err, movie) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!movie) return res.status(404).json({ error: "Movie not found" });
+
+    // Check the user exists
+    db.get("SELECT id FROM users WHERE id = ?", [userId], (err, user) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const review = {
+        id: randomUUID(),
+        created_at: new Date().toISOString(),
+      };
+
+      db.run(
+        "INSERT INTO reviews (id, movie_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+          review.id,
+          movieId,
+          userId,
+          rating,
+          comment ?? null,
+          review.created_at,
+        ],
+        (err) => {
+          if (err) {
+            if (err.code === "SQLITE_CONSTRAINT") {
+              return res
+                .status(409)
+                .json({ error: "You have already reviewed this movie" });
+            }
+            return res.status(500).json({ error: err.message });
+          }
+          res.status(201).json(review);
+        },
+      );
+    });
   });
 });
 
 // PATCH /reviews/:id
-// * Update an existing review
-router.patch("/:id", authenticate, validate(updateReviewSchema), (req, res) => {
-  const { rating, comment } = req.body;
-  const userId = req.user.id;
+router.patch("/:id", (req, res) => {
+  const { userId, rating, comment } = req.body;
 
-  const review = db
-    .prepare("SELECT * FROM reviews WHERE id = ?")
-    .get(req.params.id);
+  db.get(
+    "SELECT * FROM reviews WHERE id = ?",
+    [req.params.id],
+    (err, review) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!review) return res.status(404).json({ error: "Review not found" });
 
-  if (!review) return res.status(404).json({ error: "Review not found" });
+      if (review.user_id !== userId) {
+        return res
+          .status(403)
+          .json({ error: "You can only update your own reviews" });
+      }
 
-  // Ownership check
-  if (review.user_id !== userId) {
-    return res
-      .status(403)
-      .json({ error: "You can only update your own reviews" });
-  }
+      if (rating !== undefined && (rating < 1 || rating > 5)) {
+        return res
+          .status(400)
+          .json({ error: "Rating must be between 1 and 5" });
+      }
 
-  if (rating !== undefined) review.rating = rating;
-  if (comment !== undefined) review.comment = comment;
+      const newRating = rating !== undefined ? rating : review.rating;
+      const newComment = comment !== undefined ? comment : review.comment;
 
-  db.prepare("UPDATE reviews SET rating=?, comment=? WHERE id=?").run(
-    review.rating,
-    review.comment,
-    req.params.id,
+      db.run(
+        "UPDATE reviews SET rating=?, comment=? WHERE id=?",
+        [newRating, newComment, req.params.id],
+        (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ ...review, rating: newRating, comment: newComment });
+        },
+      );
+    },
   );
-
-  res.json(review);
 });
 
 // DELETE /reviews/:id
-// * Remove a review
-router.delete("/:id", authenticate, (req, res) => {
-  const userId = req.user.id;
-  const review = db
-    .prepare("SELECT * FROM reviews WHERE id = ?")
-    .get(req.params.id);
+router.delete("/:id", (req, res) => {
+  const { userId } = req.body;
 
-  if (!review) return res.status(404).json({ error: "Review not found" });
+  db.get(
+    "SELECT * FROM reviews WHERE id = ?",
+    [req.params.id],
+    (err, review) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!review) return res.status(404).json({ error: "Review not found" });
 
-  const user = db.prepare("SELECT role FROM users WHERE id = ?").get(userId);
+      if (review.user_id !== userId) {
+        return res
+          .status(403)
+          .json({ error: "You can only delete your own reviews" });
+      }
 
-  const isOwner = review.user_id === userId;
-  const isAdmin = user?.role === "ADMIN";
-
-  if (!isOwner && !isAdmin) {
-    return res
-      .status(403)
-      .json({ error: "You can only delete your own reviews" });
-  }
-
-  db.prepare("DELETE FROM reviews WHERE id = ?").run(req.params.id);
-  res.status(204).send();
+      db.run("DELETE FROM reviews WHERE id = ?", [req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(204).send();
+      });
+    },
+  );
 });
 
 module.exports = router;

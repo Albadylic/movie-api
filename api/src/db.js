@@ -1,10 +1,9 @@
-const Database = require("better-sqlite3");
-
-const db = new Database("./dev.db");
+const sqlite3 = require("sqlite3");
+const db = new sqlite3.Database("./dev.db");
 
 // Enable foreign keys — SQLite disables them by default
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+db.run("PRAGMA journal_mode = WAL");
+db.run("PRAGMA foreign_keys = ON");
 
 // Create tables on initial startup if they don't exist
 db.exec(`
@@ -12,7 +11,6 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'USER',
     created_at TEXT NOT NULL
   );
@@ -29,8 +27,8 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS reviews (
     id TEXT PRIMARY KEY,
-    movie_id TEXT NOT NULL REFERENCES movies(id),
-    user_id TEXT NOT NULL REFERENCES users(id),
+    movie_id TEXT NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rating INTEGER NOT NULL,
     comment TEXT,
     created_at TEXT NOT NULL,
